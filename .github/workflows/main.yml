@@ -6,9 +6,18 @@ on:
       - main
       - master
 
+env:
+  APP_DOMAIN: qz2zrquw.infinityfree.com
+  FTP_HOST: ftpupload.net
+  FTP_USERNAME: if0_42175428
+  MYSQL_HOST: sql300.infinityfree.com
+  MYSQL_DATABASE: if0_42175428_cicd
+  MYSQL_USERNAME: if0_42175428
+  HOSTING_VOLUME: vol3_8
+
 jobs:
   deploy:
-    name: FTP deploy
+    name: Deploy to InfinityFree
     runs-on: ubuntu-latest
 
     steps:
@@ -27,34 +36,42 @@ jobs:
             | xargs -0 -n1 php -l
 
       - name: Create production config
+        env:
+          DB_PASSWORD: ${{ secrets.INFINITYFREE_DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          php -r "
-          \$file = 'config/app.php';
-          \$content = file_get_contents(\$file);
-          \$content = str_replace(\"'debug' => true\", \"'debug' => false\", \$content);
-          \$content = str_replace(\"'host' => '127.0.0.1'\", \"'host' => 'sql300.infinityfree.com'\", \$content);
-          \$content = str_replace(\"'name' => 'cicd_jwt_php'\", \"'name' => 'if0_42175428_cicd'\", \$content);
-          \$content = str_replace(\"'user' => 'root'\", \"'user' => 'if0_42175428'\", \$content);
-          \$content = str_replace(\"'password' => ''\", \"'password' => '${{ secrets.INFINITYFREE_DB_PASSWORD }}'\", \$content);
-          \$content = str_replace(\"'secret' => 'CHANGE_ME_TO_A_LONG_RANDOM_SECRET'\", \"'secret' => '${{ secrets.JWT_SECRET }}'\", \$content);
-          \$content = str_replace(\"'origin' => 'http://localhost'\", \"'origin' => 'https://qz2zrquw.infinityfree.com'\", \$content);
-          file_put_contents(\$file, \$content);
-          "
+          php <<'PHP'
+          <?php
+          $file = 'config/app.php';
+          $content = file_get_contents($file);
+          $quote = static fn (string $value): string => var_export($value, true);
+          $replacements = [
+              "'debug' => true" => "'debug' => false",
+              "'host' => '127.0.0.1'" => "'host' => " . $quote(getenv('MYSQL_HOST')),
+              "'name' => 'cicd_jwt_php'" => "'name' => " . $quote(getenv('MYSQL_DATABASE')),
+              "'user' => 'root'" => "'user' => " . $quote(getenv('MYSQL_USERNAME')),
+              "'password' => ''" => "'password' => " . $quote(getenv('DB_PASSWORD')),
+              "'secret' => 'CHANGE_ME_TO_A_LONG_RANDOM_SECRET'" => "'secret' => " . $quote(getenv('JWT_SECRET')),
+              "'origin' => 'http://localhost'" => "'origin' => " . $quote('https://' . getenv('APP_DOMAIN')),
+          ];
+          file_put_contents($file, str_replace(array_keys($replacements), array_values($replacements), $content));
+          PHP
 
-      - name: Deploy to InfinityFree FTP
+      - name: Deploy files by FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ftpupload.net
-          username: if0_42175428
+          server: ${{ env.FTP_HOST }}
+          username: ${{ env.FTP_USERNAME }}
           password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
           local-dir: ./
           server-dir: /htdocs/
           exclude: |
             **/.git*
             **/.git*/**
+            **/.github/**
             **/node_modules/**
             **/vendor/**
-            .github/**
+            database/schema.sql
             github-action-copy.yml.txt
             infinityfree-deploy-action-copy.yml.txt
             README.md
