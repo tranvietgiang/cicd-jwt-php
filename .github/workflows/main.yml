@@ -37,7 +37,7 @@ jobs:
 
       - name: Create production config
         env:
-          DB_PASSWORD: ${{ secrets.INFINITYFREE_DB_PASSWORD }}
+          INFINITYFREE_PASSWORD: ${{ secrets.INFINITYFREE_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           php <<'PHP'
@@ -50,19 +50,27 @@ jobs:
               "'host' => '127.0.0.1'" => "'host' => " . $quote(getenv('MYSQL_HOST')),
               "'name' => 'cicd_jwt_php'" => "'name' => " . $quote(getenv('MYSQL_DATABASE')),
               "'user' => 'root'" => "'user' => " . $quote(getenv('MYSQL_USERNAME')),
-              "'password' => ''" => "'password' => " . $quote(getenv('DB_PASSWORD')),
+              "'password' => ''" => "'password' => " . $quote(getenv('INFINITYFREE_PASSWORD')),
               "'secret' => 'CHANGE_ME_TO_A_LONG_RANDOM_SECRET'" => "'secret' => " . $quote(getenv('JWT_SECRET')),
               "'origin' => 'http://localhost'" => "'origin' => " . $quote('https://' . getenv('APP_DOMAIN')),
           ];
           file_put_contents($file, str_replace(array_keys($replacements), array_values($replacements), $content));
           PHP
 
+      - name: Check required secrets
+        env:
+          INFINITYFREE_PASSWORD: ${{ secrets.INFINITYFREE_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          test -n "$INFINITYFREE_PASSWORD" || { echo "Missing secret: INFINITYFREE_PASSWORD"; exit 1; }
+          test -n "$JWT_SECRET" || { echo "Missing secret: JWT_SECRET"; exit 1; }
+
       - name: Deploy files by FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ env.FTP_HOST }}
           username: ${{ env.FTP_USERNAME }}
-          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          password: ${{ secrets.INFINITYFREE_PASSWORD }}
           local-dir: ./
           server-dir: /htdocs/
           exclude: |
