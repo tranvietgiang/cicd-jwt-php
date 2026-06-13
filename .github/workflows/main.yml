@@ -1,0 +1,62 @@
+name: PHP MVC JWT CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  php-lint:
+    name: PHP syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_mysql
+
+      - name: Show PHP version
+        run: php -v
+
+      - name: Lint PHP files
+        run: |
+          find . -type f -name "*.php" -not -path "./vendor/*" -print0 \
+            | xargs -0 -n1 php -l
+
+  mysql-schema:
+    name: MySQL schema check
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: cicd_jwt_php
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Import database schema
+        run: mysql -h 127.0.0.1 -uroot cicd_jwt_php < database/schema.sql
+
+      - name: Verify users table
+        run: mysql -h 127.0.0.1 -uroot -e "USE cicd_jwt_php; SHOW TABLES; DESCRIBE users;"
