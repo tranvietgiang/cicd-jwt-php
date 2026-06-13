@@ -65,21 +65,20 @@ jobs:
           test -n "$INFINITYFREE_PASSWORD" || { echo "Missing secret: INFINITYFREE_PASSWORD"; exit 1; }
           test -n "$JWT_SECRET" || { echo "Missing secret: JWT_SECRET"; exit 1; }
 
+      - name: Build deploy folder
+        run: |
+          mkdir -p deploy
+          cp -a app config core public .htaccess deploy/
+          find deploy -type f | sort
+
       - name: Deploy files by FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ env.FTP_HOST }}
           username: ${{ env.FTP_USERNAME }}
           password: ${{ secrets.INFINITYFREE_PASSWORD }}
-          local-dir: ./
+          local-dir: ./deploy/
           server-dir: /htdocs/
           exclude: |
-            **/.git*
-            **/.git*/**
-            **/.github/**
             **/node_modules/**
             **/vendor/**
-            database/schema.sql
-            github-action-copy.yml.txt
-            infinityfree-deploy-action-copy.yml.txt
-            README.md
