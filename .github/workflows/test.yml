@@ -1,0 +1,58 @@
+name: Test PHP MVC JWT
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  test:
+    name: PHP checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, pdo, pdo_mysql
+
+      - name: PHP syntax check
+        run: |
+          find . -type f -name "*.php" -not -path "./vendor/*" -print0 \
+            | xargs -0 -n1 php -l
+
+      - name: Bootstrap smoke test
+        run: php -r "require 'app/bootstrap.php'; echo 'Bootstrap OK' . PHP_EOL;"
+
+      - name: Security helpers smoke test
+        run: |
+          php <<'PHP'
+          <?php
+          require 'app/bootstrap.php';
+
+          $token = \Core\Security\Jwt::encode(['sub' => 1]);
+          $payload = \Core\Security\Jwt::decode($token);
+
+          if (($payload['sub'] ?? null) !== 1) {
+              fwrite(STDERR, 'JWT smoke test failed' . PHP_EOL);
+              exit(1);
+          }
+
+          $csrf = \Core\Security\Csrf::token();
+
+          if (!\Core\Security\Csrf::verify($csrf)) {
+              fwrite(STDERR, 'CSRF smoke test failed' . PHP_EOL);
+              exit(1);
+          }
+
+          echo 'Security helpers OK' . PHP_EOL;
+          PHP
